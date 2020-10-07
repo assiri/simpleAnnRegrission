@@ -78,8 +78,7 @@
     await tf.ready();
 
     // Import from CSV
-    const houseSalesDataset = tf.data.csv("house_data.csv");
-
+    const houseSalesDataset = tf.data.csv("https://raw.githubusercontent.com/assiri/simpleAnnRegrission/main/house_data.csv")
     // Extract x and y values to plot
     const pointsDataset = houseSalesDataset.map(record => ({
       x: record.sqft_living,

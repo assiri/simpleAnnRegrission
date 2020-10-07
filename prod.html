@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@2.0.0/dist/tf.min.js"></script>
+    <title>Prediction</title>
+</head>
+<body>
+    <input id="inp" placeholder="المساحة بالقدم المكعب ">
+    <button onclick="train()">احسب</button>
+    <p id="res"></p>
+    <script>
+      
+function normalise(tensor, previousMin = null, previousMax = null) {
+    const min = previousMin || tensor.min();
+    const max = previousMax || tensor.max();
+    const normalisedTensor = tensor.sub(min).div(max.sub(min));
+    return {tensor: normalisedTensor,min,max};
+  }
+
+  function denormalise(tensor, min, max) {
+    const denormalisedTensor = tensor.mul(max.sub(min)).add(min);
+    return denormalisedTensor;
+  }
+
+async function preData(){
+const houseSalesDataset =  tf.data.csv("https://raw.githubusercontent.com/assiri/simpleAnnRegrission/main/house_data.csv")
+const pointsDataset = houseSalesDataset.map(record => ({
+    x: record.sqft_living,
+    y: record.price,
+  })); 
+  const points = await pointsDataset.toArray(); 
+  if(points.length % 2 !== 0) { // If odd number of elements
+    points.pop(); // remove one element
+  }
+  tf.util.shuffle(points);
+  const featureValues = points.map(p => p.x);
+  const featureTensor = tf.tensor2d(featureValues, [featureValues.length, 1]);
+
+  // Extract Labels (outputs)
+  const labelValues = points.map(p => p.y);
+  const labelTensor = tf.tensor2d(labelValues, [labelValues.length, 1]);
+
+  // Normalise features and labels
+  normalisedFeature = normalise(featureTensor);
+  normalisedLabel = normalise(labelTensor);
+  featureTensor.dispose();
+  labelTensor.dispose();
+
+  [trainingFeatureTensor, testingFeatureTensor] = tf.split(normalisedFeature.tensor, 2);
+  [trainingLabelTensor, testingLabelTensor] = tf.split(normalisedLabel.tensor, 2);
+
+return {trainingFeatureTensor,testingFeatureTensor,trainingLabelTensor,testingLabelTensor}
+}
+
+
+// Start model training process.
+async function train() {
+  const {trainingFeatureTensor,testingFeatureTensor,trainingLabelTensor,testingLabelTensor}=await preData()
+
+const model = tf.sequential();
+model.add(tf.layers.dense({ units: 1,  inputDim: 1, }));
+
+model.compile({loss: 'meanSquaredError',optimizer: 'sgd',metrics: ['MAE']});
+await model.fit(trainingFeatureTensor, trainingLabelTensor, {epochs: 10, validationSplit: 0.2});
+const predictionInput = parseInt(document.getElementById("inp").value);
+    if (isNaN(predictionInput)) {
+      alert("Please enter a valid number");
+    }
+    else if (predictionInput < 200) {
+      alert("Please enter a value above 200 sqft");
+    }
+   tf.tidy(() => {
+    const inputTensor = tf.tensor1d([predictionInput]);
+    const normalisedInput = normalise(inputTensor, normalisedFeature.min, normalisedFeature.max);
+
+    const normalisedOutputTensor =  model.predict(normalisedInput.tensor);
+    const outputTensor = denormalise(normalisedOutputTensor, normalisedLabel.min, normalisedLabel.max);
+    const outputValue = outputTensor.dataSync()[0];
+    const outputValueRounded = (outputValue/1000).toFixed(0)*1000;
+    document.querySelector("#res").innerHTML= outputValueRounded
+   
+   })
+  
+}
+
+    </script>
+</body>
+</html>
